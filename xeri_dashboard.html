@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <title>Xeri API - Παρουσίαση</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; display: flex; gap: 20px; }
+        .panel { background: white; padding: 20px; border-radius: 8px; shadow: 0 2px 10px rgba(0,0,0,0.1); width: 450px; }
+        .output { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 8px; flex-grow: 1; overflow: auto; height: 90vh; font-family: monospace; white-space: pre-wrap; }
+        h2 { color: #1a73e8; margin-top: 0; }
+        .step { border-bottom: 1px solid #eee; padding: 10px 0; }
+        .step:last-child { border-bottom: none; }
+        .btn { background: #1a73e8; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin: 5px 0; width: 100%; text-align: left; }
+        .btn:hover { background: #1557b0; }
+        .btn-secondary { background: #5f6368; }
+        input { width: 100%; padding: 5px; margin: 5px 0; box-sizing: border-box; }
+        label { font-size: 12px; color: #666; font-weight: bold; }
+        .badge { background: #e8f0fe; color: #1967d2; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+    <h2>Παρουσίαση Ξερής</h2>
+    
+    <!-- Βήμα 1: Auth -->
+    <div class="step">
+        <label>ΒΗΜΑ 1: ΑΥΘΕΝΤΙΚΟΠΟΙΗΣΗ</label>
+        <button class="btn" onclick="apiCall('POST', '/auth', null, 'p1')">1α. Δημιουργία Παίκτη 1 (P1)</button>
+        <button class="btn" onclick="apiCall('POST', '/auth', null, 'p2')">1β. Δημιουργία Παίκτη 2 (P2)</button>
+        <div style="display:flex; gap:5px;">
+            <input type="text" id="token_p1" placeholder="Token P1">
+            <input type="text" id="token_p2" placeholder="Token P2">
+        </div>
+    </div>
+
+    <!-- Βήμα 2: Game Setup -->
+    <div class="step">
+        <label>ΒΗΜΑ 2: ΔΗΜΙΟΥΡΓΙΑ ΠΑΙΧΝΙΔΙΟΥ</label>
+        <button class="btn btn-secondary" onclick="createGame()">2α. Ο P1 δημιουργεί παιχνίδι</button>
+        <input type="text" id="game_id" placeholder="Game ID">
+        <button class="btn btn-secondary" onclick="joinGame()">2β. Ο P2 μπαίνει στο παιχνίδι</button>
+    </div>
+
+    <!-- Βήμα 3: Ροή Παιχνιδιού -->
+    <div class="step">
+        <label>ΒΗΜΑ 3: ΕΛΕΓΧΟΣ ΚΑΤΑΣΤΑΣΗΣ</label>
+        <button class="btn" style="background:#34a853;" onclick="getBoard()">Προβολή Board (JSON)</button>
+    </div>
+
+    <!-- Βήμα 4: Κινήσεις -->
+    <div class="step">
+        <label>ΒΗΜΑ 4: ΕΚΤΕΛΕΣΗ ΚΙΝΗΣΗΣ</label>
+        <div style="background:#fff3e0; padding:10px; border-radius:5px;">
+            <label>Ποιος παίζει;</label>
+            <select id="active_player" style="width:100%; margin-bottom:5px;">
+                <option value="p1">Παίκτης 1 (P1)</option>
+                <option value="p2">Παίκτης 2 (P2)</option>
+            </select>
+            <input type="text" id="card_to_play" placeholder="Φύλλο (π.χ. JS)">
+            <input type="text" id="cards_to_collect" placeholder="Μαζεύει (π.χ. 4H,10D - κενό για ρίξιμο)">
+            <button class="btn" style="background:#e67e22;" onclick="makeMove()">Εκτέλεση Κίνησης</button>
+        </div>
+    </div>
+
+    <p style="font-size:11px; color:#888;">* Οι κινήσεις στέλνονται ως JSON Payload στο API.</p>
+</div>
+
+<div class="output" id="json_output">
+// Οι απαντήσεις του API (JSON) θα εμφανίζονται εδώ..
+</div>
+
+<script>
+    const BASE_URL = 'http://localhost/xeri_api/api.php/api/v1';
+
+    // εδώ γίνεται μετάφραση από ελληνικά σε αγγλικά
+    function toLatin(str) {
+        if (!str) return str;
+        // εδω αφαιρούνται τα εισαγωγικά από το copy-paste
+        str = str.replace(/["']/g, "");
+        const map = {
+            'Η': 'H', 'Δ': 'D', 'Σ': 'S', 'Κ': 'C', 'Ψ': 'C'
+        };
+        return str.split('').map(char => map[char] || char).join('');
+    }
+
+    function apiCall(method, endpoint, data, targetField) {
+        const token = (targetField === 'p2') ? $('#token_p2').val() : $('#token_p1').val();
+        
+        const settings = {
+            url: BASE_URL + endpoint,
+            method: method,
+            contentType: 'application/json',
+            success: function(response) {
+                $('#json_output').text(JSON.stringify(response, null, 4));
+                
+                if (endpoint === '/auth') {
+                    if (targetField === 'p1') $('#token_p1').val(response.token);
+                    if (targetField === 'p2') $('#token_p2').val(response.token);
+                }
+                if (endpoint === '/games' && method === 'POST') {
+                    $('#game_id').val(response.game_id);
+                }
+            },
+            error: function(xhr) {
+                const err = xhr.responseJSON ? xhr.responseJSON : {error: 'Σφάλμα σύνδεσης'};
+                $('#json_output').text(JSON.stringify(err, null, 4));
+            }
+        };
+
+        if (token) settings.headers = { "Authorization": "Bearer " + token };
+        if (data) settings.data = JSON.stringify(data);
+
+        $.ajax(settings);
+    }
+
+    function createGame() {
+        apiCall('POST', '/games', null, 'p1');
+    }
+
+    function joinGame() {
+        const gid = $('#game_id').val();
+        if(!gid) return alert('Δώστε Game ID');
+        apiCall('POST', '/games/' + gid + '/join', null, 'p2');
+    }
+
+    function getBoard() {
+        const gid = $('#game_id').val();
+        if(!gid) return alert('Δώστε Game ID');
+        apiCall('GET', '/games/' + gid, null, 'p1');
+    }
+
+    function makeMove() {
+        const gid = $('#game_id').val();
+        const player = $('#active_player').val();
+        let card = $('#card_to_play').val().trim().toUpperCase();
+        let collectStr = $('#cards_to_collect').val().trim().toUpperCase();
+        
+        if(!gid || !card) return alert('Συμπληρώστε Game ID και Φύλλο');
+
+        card = toLatin(card);
+        // εδω χωρίζονται τα χαρτιά με κόμμα 
+        const tableCards = collectStr ? collectStr.split(',').map(s => toLatin(s.trim())) : [];
+
+        const payload = {
+            player_card: card,
+            table_cards: tableCards
+        };
+
+        apiCall('POST', '/games/' + gid + '/move', payload, player);
+    }
+</script>
+
+</body>
+</html>
