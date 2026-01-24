@@ -1,0 +1,11 @@
+# 2. Ορισμός της βάσης (ΠΡΟΣΟΧΗ: Πρέπει να είναι ο φάκελος σου στο users)
+RewriteBase /~iee2019131/ADISE25_2019131/
+
+# 3. Κανόνας για το API
+# Μετατρέπει το api/v1/οτιδήποτε σε api.php/οτιδήποτε
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^api/v1/(.*)$ api.php/$1 [L,QSA]
+
+# 4. Προστασία: Μην επιτρέπεις την εμφάνιση λίστας αρχείων στους φακέλους
+Options -Indexes
