@@ -1,0 +1,10 @@
+Options -Indexes
+
+RewriteEngine On
+
+RewriteBase /~iee2019131/ADISE25_2019131/
+
+# Αν το αίτημα ξεκινά με api/v1/, προώθησέ το στο api.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^api/v1/(.*)$ api.php/$1 [L,QSA]

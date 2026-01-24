@@ -1,9 +1,9 @@
 <?php
 // Ρυθμίσεις Βάσης Δεδομένων
 define('DB_SERVER', 'localhost');
-define('DB_USERNAME', 'root'); // Προεπιλεγμένο XAMPP username
-define('DB_PASSWORD', '');     // Προεπιλεγμένο XAMPP password
-define('DB_NAME', 'xeri_api'); // Το όνομα της βάσης που δημιουργήσατε
+define('DB_USERNAME', 'iee2019131'); // Προεπιλεγμένο XAMPP username
+define('DB_PASSWORD', 'Kodikosieeihu4535*');     // Προεπιλεγμένο XAMPP password
+define('DB_NAME', 'iee2019131'); // Το όνομα της βάσης που δημιουργήσατε
 
 // Δημιουργία σύνδεσης
 $link = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
