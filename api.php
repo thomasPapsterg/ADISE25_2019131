@@ -1,61 +1,59 @@
 <?php
-/**
- * ====================================================================
- * WEB API FOR XERI GAME - ADISE25 (FINAL CONNECTION SETUP)
- * ====================================================================
- */
 
-// 1. ΕΜΦΑΝΙΣΗ ΣΦΑΛΜΑΤΩΝ
+
+// 1. ΕΜΦΑΝΙΣΗ ΣΦΑΛΜΑΤΩΝ (Debugging)
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// 2. ΡΥΘΜΙΣΕΙΣ ΣΥΝΔΕΣΗΣ (Προσαρμοσμένες στη νέα σου βάση)
-$host = 'localhost';
-$db   = 'iee2019131_db'; // Το όνομα που φτιάξαμε στο PuTTY
+// 2. ΣΥΝΔΕΣΗ ΜΕ ΤΗ ΒΑΣΗ (Χρήση του αρχείου της σχολής)
+// Αντί να γράφουμε εδώ τη σύνδεση, καλούμε το έτοιμο αρχείο
+require_once "db_connect.php";
+// Πλέον έχουμε διαθέσιμη τη μεταβλητή $mysqli από το db_connect.php
 
-// 3. ΑΝΙΧΝΕΥΣΗ ΠΕΡΙΒΑΛΛΟΝΤΟΣ & CREDENTIALS
-$is_server = (gethostname() == 'users.iee.ihu.gr' || strpos($_SERVER['HTTP_HOST'], 'iee.ihu.gr') !== false);
-
-if ($is_server) {
-    // ΡΥΘΜΙΣΕΙΣ ΓΙΑ ΤΟΝ SERVER ΤΗΣ ΣΧΟΛΗΣ
-    $user = 'root'; 
-    $pass = 'Kodikosmysql123!'; // Ο κωδικός που έβαλες στο mysqladmin
-    $socket = '/home/student/iee/2019/iee2019131/mysql/mysql.sock';
-    
-    // Σύνδεση με το socket (Υποχρεωτικό για τη δική σου MySQL)
-    $link = new mysqli($host, $user, $pass, $db, null, $socket);
-} else {
-    // ΡΥΘΜΙΣΕΙΣ ΓΙΑ ΤΟ LAPTOP (XAMPP)
-    $user = 'root';
-    $pass = ''; 
-    $link = new mysqli($host, $user, $pass, $db);
-}
-
-// 4. ΕΛΕΓΧΟΣ ΣΥΝΔΕΣΗΣ
-if ($link->connect_errno) {
-    header('Content-Type: application/json');
-    die(json_encode([
-        "status" => "error",
-        "message" => "Connection failed: " . $link->connect_error,
-        "debug" => [
-            "db" => $db,
-            "user" => $user,
-            "socket" => $socket ?? 'none'
-        ]
-    ]));
-}
-
-// 5. ΑΠΟΚΡΙΣΗ ΕΠΙΤΥΧΙΑΣ
+// 3. ΡΥΘΜΙΣΕΙΣ API HEADERS
 header('Content-Type: application/json');
 header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
+// 4. ΕΝΣΩΜΑΤΩΣΗ ΛΟΓΙΚΗΣ ΠΑΙΧΝΙΔΙΟΥ
+if (file_exists('game_logic.php')) {
+    require_once 'game_logic.php';
+}
+
+// 5. ROUTING LOGIC
+$request_uri = $_SERVER['REQUEST_URI'];
+$method = $_SERVER['REQUEST_METHOD'];
+
+// Παράδειγμα: Αυθεντικοποίηση (/auth)
+if (strpos($request_uri, 'auth') !== false && $method == 'POST') {
+    $token = bin2hex(random_bytes(16));
+    $stmt = $mysqli->prepare("INSERT INTO players (token) VALUES (?)");
+    $stmt->bind_param("s", $token);
+    
+    if($stmt->execute()) {
+        echo json_encode([
+            "status" => "success", 
+            "token" => $token, 
+            "player_id" => $mysqli->insert_id
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => $mysqli->error]);
+    }
+    exit();
+}
+
+// 6. DEFAULT RESPONSE (Έλεγχος αν δουλεύουν όλα)
+// Αν κάποιος καλέσει το api.php χωρίς παραμέτρους
 echo json_encode([
     "status" => "online",
     "database" => "connected",
-    "db_name" => $db,
-    "message" => "🚀 Η σύνδεση με τη νέα βάση έγινε επιτυχώς!"
+    "message" => "Το API της Ξερής λειτουργεί κανονικά!",
+    "environment" => (gethostname() == 'users.iee.ihu.gr' ? "Περιβάλλον Σχολής" : "Τοπικό Περιβάλλον")
 ]);
 
-$link->close();
+// Κλείσιμο σύνδεσης στο τέλος
+$mysqli->close();
 ?>
