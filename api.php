@@ -18,7 +18,7 @@ if ($is_localhost) {
     // Ρυθμίσεις για SERVER (IEE IHU)
     define('DB_SERVER', 'localhost');
     define('DB_USERNAME', 'iee2019131');
-    define('DB_PASSWORD', 'Kodikosieeihu4535*');
+    define('DB_PASSWORD', 'eimaiBanker4535*');
     define('DB_NAME', 'iee2019131');
 }
 
