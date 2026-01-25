@@ -1,9 +1,17 @@
 <?php
+<<<<<<< HEAD
 /**
  * ====================================================================
  * WEB API FOR XERI GAME - ADISE25 (FINAL INTEGRATED VERSION)
  * ====================================================================
  */
+=======
+// Ρυθμίσεις Βάσης Δεδομένων
+define('DB_SERVER', 'localhost');
+define('DB_USERNAME', 'iee2019131'); // Προεπιλεγμένο XAMPP username
+define('DB_PASSWORD', 'Kodikosieeihu4535*');     // Προεπιλεγμένο XAMPP password
+define('DB_NAME', 'iee2019131'); // Το όνομα της βάσης που δημιουργήσατε
+>>>>>>> 26a59c7774768a54040fbed7f56e002502693112
 
 // Ενεργοποίηση αναφοράς σφαλμάτων για εντοπισμό προβλημάτων (μόνο για ανάπτυξη)
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -227,4 +235,10 @@ switch ($resource) {
 }
 
 $link->close();
+<<<<<<< HEAD
 ?>
+=======
+
+
+?>
+>>>>>>> 26a59c7774768a54040fbed7f56e002502693112
