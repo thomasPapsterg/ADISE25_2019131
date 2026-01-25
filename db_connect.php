@@ -15,7 +15,7 @@ $pass = $DB_PASS;
 if (gethostname() == 'users.iee.ihu.gr') {
     // ΣΥΝΔΕΣΗ ΣΤΟΝ SERVER (Μέσω Socket)
     // ΠΡΟΣΟΧΗ: Βάζουμε το ΔΙΚΟ ΣΟΥ path, όχι του asidirop
-    $socket = '/home/student/iee/2019/iee2019131/mysql/mysql.sock';
+    $socket = '/home/student/iee/2019/iee2019131/mysql/run/mysql.sock';
     $mysqli = new mysqli($host, $user, $pass, $db, null, $socket);
 } else {
     // ΣΥΝΔΕΣΗ ΣΤΟ PC (Localhost)
