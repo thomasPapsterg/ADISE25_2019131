@@ -1,7 +1,7 @@
 <?php
 /**
  * ====================================================================
- * WEB API FOR XERI GAME - ADISE25 
+ * WEB API FOR XERI GAME - ADISE25 (LOCAL & SERVER COMPATIBLE)
  * ====================================================================
  */
 
@@ -14,19 +14,25 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-// 2. ΕΣΩΤΕΡΙΚΗ ΣΥΝΔΕΣΗ ΜΕ ΤΗ ΒΑΣΗ 
-$db_host = 'localhost';
-$db_user = 'root'; 
-$db_pass = 'Kodikosmysql123!'; 
-$db_name = 'iee2019131_db';
+// 2. ΔΥΝΑΜΙΚΗ ΣΥΝΔΕΣΗ ΜΕ ΤΗ ΒΑΣΗ
+$is_server = (gethostname() == 'users.iee.ihu.gr');
 
-// Ανίχνευση αν είμαστε στον server της σχολής ή τοπικά
-if (gethostname() == 'users.iee.ihu.gr') {
-    // Σύνδεση μέσω Socket για τον server του τμήματος
-    $socket = '/home/student/iee/2019/iee2019131/mysql/run/mysql.sock';
+if ($is_server) {
+    // ΡΥΘΜΙΣΕΙΣ ΓΙΑ ΤΟΝ SERVER ΤΗΣ ΣΧΟΛΗΣ
+    $db_host = 'localhost';
+    $db_user = 'root'; 
+    $db_pass = 'Kodikosmysql123!'; 
+    $db_name = 'iee2019131_db';
+    $socket  = '/home/student/iee/2019/iee2019131/mysql/run/mysql.sock';
+    
     $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name, null, $socket);
 } else {
-    // Σύνδεση για το τοπικό PC (XAMPP)
+    // ΡΥΘΜΙΣΕΙΣ ΓΙΑ ΤΟΠΙΚΗ ΠΑΡΟΥΣΙΑΣΗ (XAMPP / WAMP)
+    $db_host = '127.0.0.1';
+    $db_user = 'root'; 
+    $db_pass = ''; // Στο XAMPP ο κωδικός είναι συνήθως κενός
+    $db_name = 'xeri_db'; // Βεβαιώσου ότι έχεις φτιάξει αυτή τη βάση τοπικά
+    
     $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
 }
 
@@ -34,12 +40,13 @@ if (gethostname() == 'users.iee.ihu.gr') {
 if ($mysqli->connect_errno) {
     echo json_encode([
         "status" => "error",
-        "message" => "Database Connection Failed: (" . $mysqli->connect_errno . ") " . $mysqli->connect_error
+        "message" => "Database Connection Failed: " . $mysqli->connect_error,
+        "environment" => ($is_server ? "Server" : "Local")
     ]);
     exit();
 }
 
-// 3. ΕΝΣΩΜΑΤΩΣΗ ΛΟΓΙΚΗΣ ΠΑΙΧΝΙΔΙΟΥ (Κανόνες)
+// 3. ΕΝΣΩΜΑΤΩΣΗ ΛΟΓΙΚΗΣ ΠΑΙΧΝΙΔΙΟΥ
 if (file_exists('game_logic.php')) {
     require_once 'game_logic.php';
 } else {
@@ -49,9 +56,10 @@ if (file_exists('game_logic.php')) {
 
 // 4. ΒΟΗΘΗΤΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ
 function get_bearer_token() {
-    $headers = getallheaders();
-    if (isset($headers['Authorization'])) {
-        if (preg_match('/Bearer\s(\S+)/', $headers['Authorization'], $matches)) {
+    // Συμβατότητα για διαφορετικούς Web Servers
+    $headers = array_change_key_case(getallheaders(), CASE_LOWER);
+    if (isset($headers['authorization'])) {
+        if (preg_match('/bearer\s(\S+)/', $headers['authorization'], $matches)) {
             return $matches[1];
         }
     }
@@ -188,7 +196,8 @@ if (preg_match('/\/games\/(\d+)\/move$/', $request_uri, $matches) && $method == 
 echo json_encode([
     "status" => "online",
     "database" => "connected",
-    "info" => "ADISE25 Xeri API (Self-Contained) Operational"
+    "environment" => ($is_server ? "IEE Server" : "Local Presentation"),
+    "info" => "ADISE25 Xeri API Operational"
 ]);
 
 $mysqli->close();
