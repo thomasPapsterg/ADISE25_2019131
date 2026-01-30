@@ -1,7 +1,7 @@
 <?php
 /**
  * ====================================================================
- * WEB API FOR XERI GAME - ADISE25 (FULL IMPLEMENTATION)
+ * WEB API FOR XERI GAME - ADISE25 
  * ====================================================================
  */
 
@@ -14,11 +14,40 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-// 2. ΣΥΝΔΕΣΗ ΜΕ ΤΗ ΒΑΣΗ (Μέσω Socket)
-require_once "db_connect.php";
-require_once "game_logic.php";
+// 2. ΕΣΩΤΕΡΙΚΗ ΣΥΝΔΕΣΗ ΜΕ ΤΗ ΒΑΣΗ 
+$db_host = 'localhost';
+$db_user = 'root'; 
+$db_pass = 'Kodikosmysql123!'; 
+$db_name = 'iee2019131_db';
 
-// 3. ΒΟΗΘΗΤΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ
+// Ανίχνευση αν είμαστε στον server της σχολής ή τοπικά
+if (gethostname() == 'users.iee.ihu.gr') {
+    // Σύνδεση μέσω Socket για τον server του τμήματος
+    $socket = '/home/student/iee/2019/iee2019131/mysql/run/mysql.sock';
+    $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name, null, $socket);
+} else {
+    // Σύνδεση για το τοπικό PC (XAMPP)
+    $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
+}
+
+// Έλεγχος σφάλματος σύνδεσης
+if ($mysqli->connect_errno) {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Database Connection Failed: (" . $mysqli->connect_errno . ") " . $mysqli->connect_error
+    ]);
+    exit();
+}
+
+// 3. ΕΝΣΩΜΑΤΩΣΗ ΛΟΓΙΚΗΣ ΠΑΙΧΝΙΔΙΟΥ (Κανόνες)
+if (file_exists('game_logic.php')) {
+    require_once 'game_logic.php';
+} else {
+    echo json_encode(["status" => "error", "message" => "game_logic.php missing"]);
+    exit();
+}
+
+// 4. ΒΟΗΘΗΤΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ
 function get_bearer_token() {
     $headers = getallheaders();
     if (isset($headers['Authorization'])) {
@@ -41,7 +70,7 @@ function get_card_rank($card) {
     return substr($card, 0, -1);
 }
 
-// 4. ROUTING LOGIC
+// 5. ROUTING LOGIC
 $method = $_SERVER['REQUEST_METHOD'];
 $request_uri = $_SERVER['REQUEST_URI'];
 $token = get_bearer_token();
@@ -57,7 +86,7 @@ if (strpos($request_uri, 'auth') !== false && $method == 'POST') {
     exit();
 }
 
-// --- ENDPOINT: CREATE GAME (POST /games) ---
+// --- ENDPOINT: CREATE GAME ---
 if (preg_match('/\/games$/', $request_uri) && $method == 'POST') {
     if (!$current_player_id) die(json_encode(["status" => "error", "message" => "Unauthorized"]));
 
@@ -72,7 +101,7 @@ if (preg_match('/\/games$/', $request_uri) && $method == 'POST') {
     exit();
 }
 
-// --- ENDPOINT: JOIN GAME (POST /games/{id}/join) ---
+// --- ENDPOINT: JOIN GAME ---
 if (preg_match('/\/games\/(\d+)\/join$/', $request_uri, $matches) && $method == 'POST') {
     $game_id = $matches[1];
     if (!$current_player_id) die(json_encode(["status" => "error", "message" => "Unauthorized"]));
@@ -89,7 +118,7 @@ if (preg_match('/\/games\/(\d+)\/join$/', $request_uri, $matches) && $method == 
     exit();
 }
 
-// --- ENDPOINT: VIEW GAME (GET /games/{id}) ---
+// --- ENDPOINT: VIEW GAME ---
 if (preg_match('/\/games\/(\d+)$/', $request_uri, $matches) && $method == 'GET') {
     $game_id = $matches[1];
     $stmt = $mysqli->prepare("SELECT * FROM games WHERE game_id = ?");
@@ -109,7 +138,7 @@ if (preg_match('/\/games\/(\d+)$/', $request_uri, $matches) && $method == 'GET')
     exit();
 }
 
-// --- ENDPOINT: MOVE (POST /games/{id}/move) ---
+// --- ENDPOINT: MOVE ---
 if (preg_match('/\/games\/(\d+)\/move$/', $request_uri, $matches) && $method == 'POST') {
     $game_id = $matches[1];
     $input = json_decode(file_get_contents('php://input'), true);
@@ -119,7 +148,9 @@ if (preg_match('/\/games\/(\d+)\/move$/', $request_uri, $matches) && $method == 
     $stmt->execute();
     $game = $stmt->get_result()->fetch_assoc();
 
-    if ($game['current_turn'] != $current_player_id) die(json_encode(["status" => "error", "message" => "Not your turn"]));
+    if (!$game || $game['current_turn'] != $current_player_id) {
+        die(json_encode(["status" => "error", "message" => "Not your turn or game not found"]));
+    }
 
     $game_data = [
         'player1_id' => $game['player1_id'],
@@ -131,7 +162,6 @@ if (preg_match('/\/games\/(\d+)\/move$/', $request_uri, $matches) && $method == 
     
     if ($move_res['error']) die(json_encode(["status" => "error", "message" => $move_res['error']]));
 
-    // Check for round/game end
     $opponent_id = ($current_player_id == $game['player1_id']) ? $game['player2_id'] : $game['player1_id'];
     $round_check = check_end_of_round_or_game($move_res['board_state'], $current_player_id, $opponent_id);
     
@@ -154,11 +184,11 @@ if (preg_match('/\/games\/(\d+)\/move$/', $request_uri, $matches) && $method == 
     exit();
 }
 
-// 5. DEFAULT RESPONSE
+// 6. DEFAULT RESPONSE
 echo json_encode([
     "status" => "online",
     "database" => "connected",
-    "info" => "ADISE25 Xeri API Operational"
+    "info" => "ADISE25 Xeri API (Self-Contained) Operational"
 ]);
 
 $mysqli->close();
