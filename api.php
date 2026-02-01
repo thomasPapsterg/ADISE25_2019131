@@ -31,7 +31,7 @@ if ($is_server) {
     $db_host = '127.0.0.1';
     $db_user = 'root'; 
     $db_pass = ''; // Στο XAMPP ο κωδικός είναι συνήθως κενός
-    $db_name = 'xeri_db'; // Βεβαιώσου ότι έχεις φτιάξει αυτή τη βάση τοπικά
+    $db_name = 'iee2019131'; // Βεβαιώσου ότι έχεις φτιάξει αυτή τη βάση τοπικά
     
     $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
 }
