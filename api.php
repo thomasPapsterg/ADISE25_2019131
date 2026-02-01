@@ -82,14 +82,20 @@ function get_card_rank($card) {
     return substr($card, 0, -1);
 }
 
-// 5. ROUTING LOGIC
+// 5. ROUTING LOGIC - Διορθωμένο για XAMPP & Server
+$path_info = $_SERVER['PATH_INFO'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
-$request_uri = $_SERVER['REQUEST_URI'];
+
+// Διόρθωση για το Authorization Header σε Apache/XAMPP
+if (!isset($_SERVER['HTTP_AUTHORIZATION']) && isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+    $_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+}
+
 $token = get_bearer_token();
 $current_player_id = $token ? get_player_id_by_token($mysqli, $token) : null;
 
 // --- ENDPOINT: AUTH (Δημιουργία Παίκτη) ---
-if (strpos($request_uri, 'auth') !== false && $method == 'POST') {
+if ($path_info == '/auth' && $method == 'POST') {
     $new_token = bin2hex(random_bytes(16));
     $stmt = $mysqli->prepare("INSERT INTO players (token) VALUES (?)");
     $stmt->bind_param("s", $new_token);
@@ -99,8 +105,11 @@ if (strpos($request_uri, 'auth') !== false && $method == 'POST') {
 }
 
 // --- ENDPOINT: CREATE GAME ---
-if (preg_match('/\/games$/', $request_uri) && $method == 'POST') {
-    if (!$current_player_id) die(json_encode(["status" => "error", "message" => "Unauthorized"]));
+if ($path_info == '/games' && $method == 'POST') {
+    if (!$current_player_id) {
+        http_response_code(401);
+        die(json_encode(["status" => "error", "message" => "Unauthorized"]));
+    }
 
     $initial_state = initialize_game();
     $board_json = json_encode($initial_state);
@@ -114,7 +123,7 @@ if (preg_match('/\/games$/', $request_uri) && $method == 'POST') {
 }
 
 // --- ENDPOINT: JOIN GAME ---
-if (preg_match('/\/games\/(\d+)\/join$/', $request_uri, $matches) && $method == 'POST') {
+if (preg_match('/^\/games\/(\d+)\/join$/', $path_info, $matches) && $method == 'POST') {
     $game_id = $matches[1];
     if (!$current_player_id) die(json_encode(["status" => "error", "message" => "Unauthorized"]));
 
@@ -125,13 +134,13 @@ if (preg_match('/\/games\/(\d+)\/join$/', $request_uri, $matches) && $method == 
     if ($mysqli->affected_rows > 0) {
         echo json_encode(["status" => "active", "message" => "Joined successfully"]);
     } else {
-        echo json_encode(["status" => "error", "message" => "Cannot join game"]);
+        echo json_encode(["status" => "error", "message" => "Cannot join game (Check if ID is correct or if you are already P1)"]);
     }
     exit();
 }
 
 // --- ENDPOINT: VIEW GAME ---
-if (preg_match('/\/games\/(\d+)$/', $request_uri, $matches) && $method == 'GET') {
+if (preg_match('/^\/games\/(\d+)$/', $path_info, $matches) && $method == 'GET') {
     $game_id = $matches[1];
     $stmt = $mysqli->prepare("SELECT * FROM games WHERE game_id = ?");
     $stmt->bind_param("i", $game_id);
@@ -151,10 +160,12 @@ if (preg_match('/\/games\/(\d+)$/', $request_uri, $matches) && $method == 'GET')
 }
 
 // --- ENDPOINT: MOVE ---
-if (preg_match('/\/games\/(\d+)\/move$/', $request_uri, $matches) && $method == 'POST') {
+if (preg_match('/^\/games\/(\d+)\/move$/', $path_info, $matches) && $method == 'POST') {
     $game_id = $matches[1];
     $input = json_decode(file_get_contents('php://input'), true);
     
+    if (!$current_player_id) die(json_encode(["status" => "error", "message" => "Unauthorized"]));
+
     $stmt = $mysqli->prepare("SELECT * FROM games WHERE game_id = ?");
     $stmt->bind_param("i", $game_id);
     $stmt->execute();
@@ -172,7 +183,9 @@ if (preg_match('/\/games\/(\d+)\/move$/', $request_uri, $matches) && $method == 
 
     $move_res = apply_move_and_check_rules($game_data, $current_player_id, $input['player_card'], $input['table_cards']);
     
-    if ($move_res['error']) die(json_encode(["status" => "error", "message" => $move_res['error']]));
+    if (isset($move_res['error']) && $move_res['error']) {
+        die(json_encode(["status" => "error", "message" => $move_res['error']]));
+    }
 
     $opponent_id = ($current_player_id == $game['player1_id']) ? $game['player2_id'] : $game['player1_id'];
     $round_check = check_end_of_round_or_game($move_res['board_state'], $current_player_id, $opponent_id);
