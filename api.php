@@ -60,13 +60,21 @@ if (file_exists('game_logic.php')) {
 
 // 4. ΒΟΗΘΗΤΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ
 function get_bearer_token() {
-    // Συμβατότητα για διαφορετικούς Web Servers
+    // 1. Έλεγχος στα Headers
     $headers = array_change_key_case(getallheaders(), CASE_LOWER);
     if (isset($headers['authorization'])) {
         if (preg_match('/bearer\s(\S+)/', $headers['authorization'], $matches)) {
             return $matches[1];
         }
     }
+    
+    // 2. Εναλλακτική: Έλεγχος αν στάλθηκε ως παράμετρος στο URL (για debug)
+    if (isset($_GET['token'])) return $_GET['token'];
+
+    // 3. Εναλλακτική: Έλεγχος μέσα στο JSON body της αίτησης
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (isset($input['token'])) return $input['input'];
+
     return null;
 }
 

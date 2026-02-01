@@ -116,8 +116,9 @@
     }
 
     function createGame() {
-        apiCall('POST', '/games', null, 'p1');
-    }
+    const token = $('#token_p1').val();
+    apiCall('POST', '/games', { token: token }, 'p1');
+}
 
     function joinGame() {
         const gid = $('#game_id').val();
@@ -131,25 +132,26 @@
         apiCall('GET', '/games/' + gid, null, 'p1');
     }
 
-    function makeMove() {
-        const gid = $('#game_id').val();
-        const player = $('#active_player').val();
-        let card = $('#card_to_play').val().trim().toUpperCase();
-        let collectStr = $('#cards_to_collect').val().trim().toUpperCase();
-        
-        if(!gid || !card) return alert('Συμπληρώστε Game ID και Φύλλο');
+   function makeMove() {
+    const gid = $('#game_id').val();
+    const player = $('#active_player').val();
+    const token = (player === 'p2') ? $('#token_p2').val() : $('#token_p1').val(); // Προσθήκη
+    let card = $('#card_to_play').val().trim().toUpperCase();
+    let collectStr = $('#cards_to_collect').val().trim().toUpperCase();
+    
+    if(!gid || !card) return alert('Συμπληρώστε Game ID και Φύλλο');
 
-        card = toLatin(card);
-        // εδω χωρίζονται τα χαρτιά με κόμμα 
-        const tableCards = collectStr ? collectStr.split(',').map(s => toLatin(s.trim())) : [];
+    card = toLatin(card);
+    const tableCards = collectStr ? collectStr.split(',').map(s => toLatin(s.trim())) : [];
 
-        const payload = {
-            player_card: card,
-            table_cards: tableCards
-        };
+    const payload = {
+        token: token, // Προσθήκη του token εδώ
+        player_card: card,
+        table_cards: tableCards
+    };
 
-        apiCall('POST', '/games/' + gid + '/move', payload, player);
-    }
+    apiCall('POST', '/games/' + gid + '/move', payload, player);
+}
 </script>
 
 </body>
