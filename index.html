@@ -1,158 +1,492 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="el">
 <head>
-    <meta charset="UTF-8">
-    <title>Xeri API - Παρουσίαση</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <style>
-        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; display: flex; gap: 20px; }
-        .panel { background: white; padding: 20px; border-radius: 8px;  width: 450px; }
-        .output { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 8px; flex-grow: 1; overflow: auto; height: 90vh; font-family: monospace; white-space: pre-wrap; }
-        h2 { color: #1a73e8; margin-top: 0; }
-        .step { border-bottom: 1px solid #eee; padding: 10px 0; }
-        .step:last-child { border-bottom: none; }
-        .btn { background: #1a73e8; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin: 5px 0; width: 100%; text-align: left; }
-        .btn:hover { background: #1557b0; }
-        .btn-secondary { background: #5f6368; }
-        input { width: 100%; padding: 5px; margin: 5px 0; box-sizing: border-box; }
-        label { font-size: 12px; color: #666; font-weight: bold; }
-        .badge { background: #e8f0fe; color: #1967d2; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ξερή – Demo UI</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    :root{
+      --felt:#1f6b3a;
+      --felt2:#1a5c32;
+      --panel: rgba(0,0,0,.28);
+      --line: rgba(255,255,255,.18);
+      --txt: #f2f5f3;
+      --muted: rgba(255,255,255,.75);
+      --accent: #61dafb;
+      --danger: #ff6b6b;
+      --ok: #56f19a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 50% 35%, var(--felt) 0%, var(--felt2) 70%, #134325 100%);
+      color:var(--txt);
+    }
+    .wrap{ max-width: 1400px; margin:0 auto; padding:18px; display:grid; grid-template-columns: 360px 1fr; gap:16px; }
+    .panel{
+      background: rgba(0,0,0,.30);
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:16px;
+      padding:14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.22);
+    }
+    .panel h2{ margin:0 0 10px 0; font-size:18px; }
+    .row{ display:flex; gap:8px; align-items:center; }
+    .row > *{ flex:1; }
+    input, select, button{ font: inherit; }
+    input, select{
+      width:100%;
+      padding:9px 10px;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      color: var(--txt);
+      outline:none;
+    }
+    button{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.10);
+      color: var(--txt);
+      cursor:pointer;
+    }
+    button:hover{ background: rgba(255,255,255,.16); }
+    .btn-primary{ border-color: rgba(97,218,251,.55); }
+    .btn-ok{ border-color: rgba(86,241,154,.55); }
+    .btn-danger{ border-color: rgba(255,107,107,.6); }
+
+    .mini{ font-size:12px; color: var(--muted); line-height:1.35; margin-top:8px; }
+
+    .table{
+      background: rgba(0,0,0,.20);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:18px;
+      padding:14px;
+      min-height: 82vh;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    }
+
+    .topbar{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+    .pill{
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      padding:6px 12px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.22);
+      color: rgba(255,255,255,.92);
+      font-size:12px;
+    }
+    .pill.ok{ border-color: rgba(86,241,154,.45); }
+    .pill.bad{ border-color: rgba(255,107,107,.55); }
+
+    /* Card visuals */
+    .card{
+      width:72px; height:96px;
+      border-radius:12px;
+      background: #fff;
+      color:#111;
+      border:1px solid rgba(0,0,0,.12);
+      box-shadow: 0 10px 20px rgba(0,0,0,.22);
+      position:relative;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      user-select:none;
+      transition: transform .12s ease, outline-color .12s ease;
+    }
+    .card .corner{
+      position:absolute;
+      left:8px; top:8px;
+      font-weight:800;
+      font-size:14px;
+      line-height:1.05;
+      text-align:left;
+    }
+    .card .corner.bottom{
+      left:auto; top:auto;
+      right:8px; bottom:8px;
+      transform: rotate(180deg);
+    }
+    .card .pip{ font-size:30px; }
+    .card.red{ color:#c0392b; }
+    .card.black{ color:#111; }
+    .card.selected{ outline:3px solid rgba(97,218,251,.9); transform: translateY(-6px); }
+
+    .card.back{
+      background: linear-gradient(135deg, #234 0%, #456 55%, #234 100%);
+      border:1px solid rgba(255,255,255,.25);
+      color: rgba(255,255,255,.92);
+      cursor:default;
+    }
+    .card.back::after{
+      content:"♠♥♦♣";
+      font-weight:800;
+      letter-spacing:3px;
+      opacity:.85;
+    }
+
+    .area{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .areaTitle{ font-size:12px; color: var(--muted); margin-bottom:8px; }
+
+    .stack{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      padding:10px;
+      border-radius:14px;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      min-height:120px;
+    }
+
+    .json{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:12px;
+      white-space: pre-wrap;
+      background: rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:14px;
+      padding:10px;
+      max-height: 240px;
+      overflow:auto;
+    }
+
+    .hint{
+      padding:10px;
+      border-radius:12px;
+      border:1px dashed rgba(255,255,255,.22);
+      background: rgba(0,0,0,.18);
+      color: rgba(255,255,255,.85);
+      font-size:12px;
+    }
+  </style>
 </head>
+
 <body>
+  <div class="wrap">
 
-<div class="panel">
-    <h2>Παρουσίαση Ξερής</h2>
-    
-    <!-- Βήμα 1: Auth -->
-    <div class="step">
-        <label>ΒΗΜΑ 1: ΑΥΘΕΝΤΙΚΟΠΟΙΗΣΗ</label>
-        <button class="btn" onclick="apiCall('POST', '/auth', null, 'p1')">1α. Δημιουργία Παίκτη 1 (P1)</button>
-        <button class="btn" onclick="apiCall('POST', '/auth', null, 'p2')">1β. Δημιουργία Παίκτη 2 (P2)</button>
-        <div style="display:flex; gap:5px;">
-            <input type="text" id="token_p1" placeholder="Token P1">
-            <input type="text" id="token_p2" placeholder="Token P2">
+    <!-- LEFT PANEL -->
+    <div class="panel">
+      <h2>Controls</h2>
+
+      <div class="row">
+        <button class="btn-primary" id="btnAuthP1">Auth P1</button>
+        <button class="btn-primary" id="btnAuthP2">Auth P2</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <input id="token_p1" placeholder="Token P1">
+        <input id="token_p2" placeholder="Token P2">
+      </div>
+
+      <div style="height:10px"></div>
+
+      <button class="btn-ok" id="btnCreate">Create (P1)</button>
+      <div class="row" style="margin-top:8px;">
+        <input id="game_id" placeholder="Game ID">
+        <button class="btn-ok" id="btnJoin">Join (P2)</button>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <select id="active_player">
+          <option value="p1">Παίζω ως P1</option>
+          <option value="p2">Παίζω ως P2</option>
+        </select>
+        <button id="btnBoard">Board</button>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <button class="btn-primary" id="btnPlay">▶ Παίξε</button>
+      <button class="btn-danger" id="btnClear" style="margin-top:8px;">Clear επιλογές</button>
+
+      <div class="mini">
+         Κλικάρεις μόνο φύλλο από <b>το δικό σου</b> χέρι. <br/>
+         Αν ταιριάζει με το πάνω φύλλο ή είναι Βαλές → μαζεύει (σύμφωνα με τους κανόνες του API).
+      </div>
+
+      <div class="hint" style="margin-top:12px;">
+        <div><b>API URL</b></div>
+        <div style="opacity:.9; margin-top:6px;">
+          Βεβαιώσου ότι δείχνει στο σωστό φάκελο:
+          <div class="json" id="apiUrlBox"></div>
         </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div class="areaTitle">Τελευταία απάντηση API</div>
+        <div class="json" id="json_output">{}</div>
+      </div>
     </div>
 
-    <!-- Βήμα 2: Game Setup -->
-    <div class="step">
-        <label>ΒΗΜΑ 2: ΔΗΜΙΟΥΡΓΙΑ ΠΑΙΧΝΙΔΙΟΥ</label>
-        <button class="btn btn-secondary" onclick="createGame()">2α. Ο P1 δημιουργεί παιχνίδι</button>
-        <input type="text" id="game_id" placeholder="Game ID">
-        <button class="btn btn-secondary" onclick="joinGame()">2β. Ο P2 μπαίνει στο παιχνίδι</button>
+    <!-- TABLE -->
+    <div class="table">
+      <div class="topbar">
+        <div class="pill" id="pillGame">🎮 Game: --</div>
+        <div class="pill" id="pillYou">🙋 Εσύ: --</div>
+        <div class="pill" id="pillTurn">⏳ Turn: --</div>
+        <div class="pill" id="pillDeck">🂠 Deck: --</div>
+        <div class="pill" id="pillLiveScore">🏆 Score: P1 0 • P2 0</div>
+        <div class="pill" id="pillCollected">🗂️ Collected: P1 0 • P2 0</div>
+      </div>
+
+      <div>
+        <div class="areaTitle" id="oppTitle">Αντίπαλος</div>
+        <div class="area" id="oppHand"></div>
+      </div>
+
+      <div>
+        <div class="areaTitle">Τραπέζι (ΣΤΟΙΒΑ)</div>
+        <div class="stack" id="tablePile"></div>
+      </div>
+
+      <div>
+        <div class="areaTitle" id="meTitle">Εσύ</div>
+        <div class="area" id="myHand"></div>
+      </div>
     </div>
 
-    <!-- Βήμα 3: Ροή Παιχνιδιού -->
-    <div class="step">
-        <label>ΒΗΜΑ 3: ΕΛΕΓΧΟΣ ΚΑΤΑΣΤΑΣΗΣ</label>
-        <button class="btn" style="background:#34a853;" onclick="getBoard()">Προβολή Board (JSON)</button>
-    </div>
-
-    <!-- Βήμα 4: Κινήσεις -->
-    <div class="step">
-        <label>ΒΗΜΑ 4: ΕΚΤΕΛΕΣΗ ΚΙΝΗΣΗΣ</label>
-        <div style="background:#fff3e0; padding:10px; border-radius:5px;">
-            <label>Ποιος παίζει;</label>
-            <select id="active_player" style="width:100%; margin-bottom:5px;">
-                <option value="p1">Παίκτης 1 (P1)</option>
-                <option value="p2">Παίκτης 2 (P2)</option>
-            </select>
-            <input type="text" id="card_to_play" placeholder="Φύλλο (π.χ. JS)">
-            <input type="text" id="cards_to_collect" placeholder="Μαζεύει (π.χ. 4H,10D - κενό για ρίξιμο)">
-            <button class="btn" style="background:#e67e22;" onclick="makeMove()">Εκτέλεση Κίνησης</button>
-        </div>
-    </div>
-
-    <p style="font-size:11px; color:#888;">* Οι κινήσεις στέλνονται ως JSON Payload στο API.</p>
-</div>
-
-<div class="output" id="json_output">
-// Οι απαντήσεις του API (JSON) θα εμφανίζονται εδώ..
-</div>
+  </div>
 
 <script>
-    const BASE_URL = 'http://127.0.0.1/iee2019131/api.php';
+  // 🔧 ΒΑΛΕ ΕΔΩ ΤΟ ΣΩΣΤΟ PATH ΣΟΥ
+  const BASE_URL = "http://127.0.0.1/project_ADISE/ADISE25_2019131/api.php";
+  $("#apiUrlBox").text(BASE_URL);
 
-    // εδώ γίνεται μετάφραση από ελληνικά σε αγγλικά
-    function toLatin(str) {
-        if (!str) return str;
-        // εδω αφαιρούνται τα εισαγωγικά από το copy-paste
-        str = str.replace(/["']/g, "");
-        const map = {
-            'Η': 'H', 'Δ': 'D', 'Σ': 'S', 'Κ': 'C', 'Ψ': 'C'
-        };
-        return str.split('').map(char => map[char] || char).join('');
-    }
+  let LAST = null;
+  let SELECTED_HAND = null;
 
-    function apiCall(method, endpoint, data, targetField) {
-        const token = (targetField === 'p2') ? $('#token_p2').val() : $('#token_p1').val();
-        
-        const settings = {
-            url: BASE_URL + endpoint,
-            method: method,
-            contentType: 'application/json',
-            success: function(response) {
-                $('#json_output').text(JSON.stringify(response, null, 4));
-                
-                if (endpoint === '/auth') {
-                    if (targetField === 'p1') $('#token_p1').val(response.token);
-                    if (targetField === 'p2') $('#token_p2').val(response.token);
-                }
-                if (endpoint === '/games' && method === 'POST') {
-                    $('#game_id').val(response.game_id);
-                }
-            },
-            error: function(xhr) {
-                const err = xhr.responseJSON ? xhr.responseJSON : {error: 'Σφάλμα σύνδεσης'};
-                $('#json_output').text(JSON.stringify(err, null, 4));
-            }
-        };
+  function suitToPip(s){
+    return ({H:"♥",D:"♦",C:"♣",S:"♠"})[s] || s;
+  }
+  function isRedSuit(s){ return (s==="H" || s==="D"); }
 
-        if (token) settings.headers = { "Authorization": "Bearer " + token };
-        if (data) settings.data = JSON.stringify(data);
+  function renderCard(code, clickable=true, selected=false){
+    const suit = code.slice(-1);
+    const rank = code.slice(0, -1);
+    const pip = suitToPip(suit);
+    const $c = $("<div>").addClass("card").addClass(isRedSuit(suit) ? "red" : "black");
+    if(selected) $c.addClass("selected");
+    $c.append($("<div>").addClass("corner").html(`${rank}<br>${pip}`));
+    $c.append($("<div>").addClass("pip").text(pip));
+    $c.append($("<div>").addClass("corner bottom").html(`${rank}<br>${pip}`));
+    if(!clickable) $c.css("cursor","default");
+    return $c;
+  }
+  function renderBack(){ return $("<div>").addClass("card back"); }
 
-        $.ajax(settings);
-    }
+  function activeToken(){
+    const who = $("#active_player").val();
+    return (who === "p2") ? $("#token_p2").val().trim() : $("#token_p1").val().trim();
+  }
+  function activeMeKey(){
+    return ($("#active_player").val() === "p2") ? "player2_hand" : "player1_hand";
+  }
+  function activeOppKey(){
+    return ($("#active_player").val() === "p2") ? "player1_hand" : "player2_hand";
+  }
+  function activeMeLabel(){ return ($("#active_player").val() === "p2") ? "P2" : "P1"; }
+  function activeOppLabel(){ return ($("#active_player").val() === "p2") ? "P1" : "P2"; }
 
-    function createGame() {
-    const token = $('#token_p1').val();
-    apiCall('POST', '/games', { token: token }, 'p1');
-}
+  function refreshBoard(){
+    const gid = $("#game_id").val().trim();
+    if(!gid) return;
+    $.ajax({
+      url: BASE_URL + `?path=/games/${gid}`,
+      method: "GET",
+      success: (res) => {
+        LAST = res;
+        $("#json_output").text(JSON.stringify(res, null, 2));
+        paint(res);
+      },
+      error: (xhr) => {
+        const err = xhr.responseJSON || {status:"error", message: xhr.responseText || "Σφάλμα"};
+        $("#json_output").text(JSON.stringify(err, null, 2));
+      }
+    });
+  }
 
-    function joinGame() {
-        const gid = $('#game_id').val();
-        if(!gid) return alert('Δώστε Game ID');
-        apiCall('POST', '/games/' + gid + '/join', null, 'p2');
-    }
+  function paint(res){
+    const bs = res.board_state || {};
+    const gid = $("#game_id").val() || "--";
 
-    function getBoard() {
-        const gid = $('#game_id').val();
-        if(!gid) return alert('Δώστε Game ID');
-        apiCall('GET', '/games/' + gid, null, 'p1');
-    }
+    $("#pillGame").text(`🎮 Game: ${gid}`);
+    $("#pillYou").text(`🙋 Εσύ: ${activeMeLabel()}`);
+    $("#pillDeck").text(`🂠 Deck: ${bs.deck ? bs.deck.length : "--"}`);
+    //  Collected (ποσα φύλλα έχει μαζέψει ο καθένας)
+    const p1Collected = (bs.player1_collected || []).length;
+    const p2Collected = (bs.player2_collected || []).length;
 
-   function makeMove() {
-    const gid = $('#game_id').val();
-    const player = $('#active_player').val();
-    const token = (player === 'p2') ? $('#token_p2').val() : $('#token_p1').val(); // Προσθήκη
-    let card = $('#card_to_play').val().trim().toUpperCase();
-    let collectStr = $('#cards_to_collect').val().trim().toUpperCase();
-    
-    if(!gid || !card) return alert('Συμπληρώστε Game ID και Φύλλο');
+    // Live score (πάντα αριθμοί – ποτέ undefined)
+    const ls = res.live_scores || {};
+    const p1Score = (ls.player1_score ?? ls.player1 ?? 0);
+    const p2Score = (ls.player2_score ?? ls.player2 ?? 0);
 
-    card = toLatin(card);
-    const tableCards = collectStr ? collectStr.split(',').map(s => toLatin(s.trim())) : [];
+    //  Ενημέρωση UI
+    $("#pillLiveScore").text(` Score: P1 ${p1Score} • P2 ${p2Score}`);
+    $("#pillCollected").text(` Collected: P1 ${p1Collected} • P2 ${p2Collected}`);
 
-    const payload = {
-        token: token, // Προσθήκη του token εδώ
-        player_card: card,
-        table_cards: tableCards
-    };
+    // turn indicator
+    const turn = res.current_turn ?? "--";
+    const myId = ($("#active_player").val()==="p2") ? (res.player2_id ?? null) : (res.player1_id ?? null);
+    const yourTurn = (myId !== null && turn === myId);
 
-    apiCall('POST', '/games/' + gid + '/move', payload, player);
-}
+    $("#pillTurn")
+      .text(
+        ` Turn: ${turn}` +
+        (myId ? (yourTurn ? " (ΕΙΝΑΙ Η ΣΕΙΡΑ ΣΟΥ!)" : " (ΠΕΡΙΜΕΝΕ ΤΗΝ ΣΕΙΡΑ ΣΟΥ...)") : "")
+      )
+      .removeClass("ok bad")
+      .addClass(yourTurn ? "ok" : "bad");
+
+    // titles
+    $("#meTitle").text(`Εσύ (${activeMeLabel()})`);
+    $("#oppTitle").text(`Αντίπαλος (${activeOppLabel()})`);
+
+    // Opponent hand: backs equal to opponent length
+    $("#oppHand").empty();
+    const oppCount = (bs[activeOppKey()] || []).length;
+    for(let i=0;i<oppCount;i++) $("#oppHand").append(renderBack());
+
+    // Table pile: show stacked, NOT clickable
+    $("#tablePile").empty();
+    (bs.table_pile || []).forEach((c, idx) => {
+      const $card = renderCard(c, false, false);
+      $card.css("margin-left", idx===0 ? "0" : "-34px");
+      $("#tablePile").append($card);
+    });
+
+    // My hand: clickable based on active player
+    $("#myHand").empty();
+    (bs[activeMeKey()] || []).forEach((c) => {
+      const $card = renderCard(c, true, SELECTED_HAND === c);
+      $card.on("click", () => {
+        SELECTED_HAND = (SELECTED_HAND === c) ? null : c;
+        paint(res);
+      });
+      $("#myHand").append($card);
+    });
+  }
+
+  // Repaint on player switch (so hands swap)
+  $("#active_player").on("change", () => {
+    SELECTED_HAND = null;
+    if(LAST) paint(LAST);
+  });
+
+  // Auth buttons
+  $("#btnAuthP1").on("click", () => {
+    $.ajax({
+      url: BASE_URL + "?path=/auth",
+      method: "POST",
+      success: (res) => { $("#token_p1").val(res.token); $("#json_output").text(JSON.stringify(res,null,2)); },
+      error: (xhr)=> $("#json_output").text(JSON.stringify(xhr.responseJSON||{},null,2))
+    });
+  });
+
+  $("#btnAuthP2").on("click", () => {
+    $.ajax({
+      url: BASE_URL + "?path=/auth",
+      method: "POST",
+      success: (res) => { $("#token_p2").val(res.token); $("#json_output").text(JSON.stringify(res,null,2)); },
+      error: (xhr)=> $("#json_output").text(JSON.stringify(xhr.responseJSON||{},null,2))
+    });
+  });
+
+  $("#btnCreate").on("click", () => {
+    const t = $("#token_p1").val().trim();
+    if(!t) return alert("Κάνε πρώτα Auth P1");
+    $.ajax({
+      url: BASE_URL + "?path=/games",
+      method: "POST",
+      headers: { Authorization: "Bearer " + t },
+      contentType: "application/json",
+      success: (res) => {
+        $("#game_id").val(res.game_id);
+        $("#json_output").text(JSON.stringify(res,null,2));
+        refreshBoard();
+      },
+      error: (xhr)=> $("#json_output").text(JSON.stringify(xhr.responseJSON||{},null,2))
+    });
+  });
+
+  $("#btnJoin").on("click", () => {
+    const gid = $("#game_id").val().trim();
+    const t = $("#token_p2").val().trim();
+    if(!gid) return alert("Βάλε Game ID");
+    if(!t) return alert("Κάνε πρώτα Auth P2");
+    $.ajax({
+      url: BASE_URL + `?path=/games/${gid}/join`,
+      method: "POST",
+      headers: { Authorization: "Bearer " + t },
+      success: (res) => { $("#json_output").text(JSON.stringify(res,null,2)); refreshBoard(); },
+      error: (xhr)=> $("#json_output").text(JSON.stringify(xhr.responseJSON||{},null,2))
+    });
+  });
+
+  $("#btnBoard").on("click", refreshBoard);
+
+  $("#btnClear").on("click", () => {
+    SELECTED_HAND = null;
+    if(LAST) paint(LAST);
+  });
+
+  $("#btnPlay").on("click", () => {
+    const gid = $("#game_id").val().trim();
+    if(!gid) return alert("Βάλε Game ID");
+    if(!SELECTED_HAND) return alert("Διάλεξε φύλλο από το χέρι σου");
+
+    const token = activeToken();
+    if(!token) return alert("Λείπει token (κάνε auth στον παίκτη)");
+
+    $.ajax({
+      url: BASE_URL + `?path=/games/${gid}/move`,
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+      contentType: "application/json",
+      data: JSON.stringify({
+        player_card: SELECTED_HAND,
+        table_cards: [] // δεν κλικάρουμε το τραπέζι
+      }),
+      success: (res) => {
+        $("#json_output").text(JSON.stringify(res,null,2));
+        SELECTED_HAND = null;
+        refreshBoard();
+      },
+      error: (xhr) => {
+        const err = xhr.responseJSON || {status:"error", message: xhr.responseText || "Σφάλμα"};
+        $("#json_output").text(JSON.stringify(err,null,2));
+      }
+    });
+  });
 </script>
-
 </body>
 </html>
+
+
+
+
+
+

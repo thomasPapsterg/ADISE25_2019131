@@ -1,229 +1,221 @@
 <?php
 /**
- * ====================================================================
- * WEB API FOR XERI GAME - ADISE25 (LOCAL & SERVER COMPATIBLE)
- * ====================================================================
+ * ===========================================================
+ * WEB API FOR XERI GAME - ADISE25
+ * XAMPP READY • ?path ROUTING • LIVE SCORE (NO +3)
+ * ===========================================================
  */
 
-// 1. ΡΥΘΜΙΣΕΙΣ ΣΦΑΛΜΑΤΩΝ & HEADERS
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-header('Content-Type: application/json');
-// Προσθήκη για ανάγνωση του Authorization Header σε Apache
-if (!isset($_SERVER['HTTP_AUTHORIZATION']) && isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
-    $_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
-}
+header('Content-Type: application/json; charset=utf-8');
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-// 2. ΔΥΝΑΜΙΚΗ ΣΥΝΔΕΣΗ ΜΕ ΤΗ ΒΑΣΗ
-$is_server = (gethostname() == 'users.iee.ihu.gr');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit();
 
-if ($is_server) {
-    // ΡΥΘΜΙΣΕΙΣ ΓΙΑ ΤΟΝ SERVER ΤΗΣ ΣΧΟΛΗΣ
-    $db_host = 'localhost';
-    $db_user = 'root'; 
-    $db_pass = 'Kodikosmysql123!'; 
-    $db_name = 'iee2019131_db';
-    $socket  = '/home/student/iee/2019/iee2019131/mysql/run/mysql.sock';
-    
-    $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name, null, $socket);
-} else {
-    // ΡΥΘΜΙΣΕΙΣ ΓΙΑ ΤΟΠΙΚΗ ΠΑΡΟΥΣΙΑΣΗ (XAMPP / WAMP)
-    $db_host = '127.0.0.1';
-    $db_user = 'root'; 
-    $db_pass = ''; // Στο XAMPP ο κωδικός είναι συνήθως κενός
-    $db_name = 'iee2019131'; // Βεβαιώσου ότι έχεις φτιάξει αυτή τη βάση τοπικά
-    
-    $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name);
-}
+/* ===========================================================
+   ROUTING
+   =========================================================== */
+$path_info = $_GET['path'] ?? '';
+$method    = $_SERVER['REQUEST_METHOD'];
 
-// Έλεγχος σφάλματος σύνδεσης
+/* ===========================================================
+   DB (XAMPP)
+   =========================================================== */
+$mysqli = new mysqli('127.0.0.1', 'root', '', 'iee2019131');
 if ($mysqli->connect_errno) {
-    echo json_encode([
-        "status" => "error",
-        "message" => "Database Connection Failed: " . $mysqli->connect_error,
-        "environment" => ($is_server ? "Server" : "Local")
-    ]);
-    exit();
+  echo json_encode(["status"=>"error","message"=>"DB connection failed"]);
+  exit();
+}
+$mysqli->set_charset("utf8mb4");
+
+/* ===========================================================
+   GAME LOGIC
+   =========================================================== */
+require_once __DIR__ . '/game_logic.php';
+
+/* ===========================================================
+   HELPERS
+   =========================================================== */
+function get_bearer_token(): ?string {
+  // A) Από $_SERVER (συχνά μπαίνει σε REDIRECT_HTTP_AUTHORIZATION)
+  $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+  if (!empty($auth) && preg_match('/Bearer\s+(\S+)/i', $auth, $m)) return $m[1];
+
+  // B) Από getallheaders() (fallback)
+  if (function_exists('getallheaders')) {
+    $h = array_change_key_case(getallheaders(), CASE_LOWER);
+    if (!empty($h['authorization']) && preg_match('/Bearer\s+(\S+)/i', $h['authorization'], $m)) return $m[1];
+  }
+
+  // C) Από JSON body (fallback)
+  $raw = file_get_contents('php://input');
+  if ($raw) {
+    $in = json_decode($raw, true);
+    if (is_array($in) && !empty($in['token'])) return $in['token'];
+  }
+
+  // D) Από URL (debug)
+  if (!empty($_GET['token'])) return $_GET['token'];
+
+  return null;
 }
 
-// 3. ΕΝΣΩΜΑΤΩΣΗ ΛΟΓΙΚΗΣ ΠΑΙΧΝΙΔΙΟΥ
-if (file_exists('game_logic.php')) {
-    require_once 'game_logic.php';
-} else {
-    echo json_encode(["status" => "error", "message" => "game_logic.php missing"]);
-    exit();
+
+function get_player_id(mysqli $db, string $token): ?int {
+  $st = $db->prepare("SELECT player_id FROM players WHERE token=?");
+  $st->bind_param("s",$token);
+  $st->execute();
+  $st->bind_result($pid);
+  $st->fetch();
+  $st->close();
+  return $pid ?: null;
 }
 
-// 4. ΒΟΗΘΗΤΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ
-function get_bearer_token() {
-    // 1. Έλεγχος στα Headers
-    $headers = array_change_key_case(getallheaders(), CASE_LOWER);
-    if (isset($headers['authorization'])) {
-        if (preg_match('/bearer\s(\S+)/', $headers['authorization'], $matches)) {
-            return $matches[1];
-        }
-    }
-    
-    // 2. Εναλλακτική: Έλεγχος αν στάλθηκε ως παράμετρος στο URL (για debug)
-    if (isset($_GET['token'])) return $_GET['token'];
-
-    // 3. Εναλλακτική: Έλεγχος μέσα στο JSON body της αίτησης
-    $input = json_decode(file_get_contents('php://input'), true);
-    if (isset($input['token'])) return $input['input'];
-
-    return null;
+function json_body(): array {
+  $raw = file_get_contents("php://input");
+  $j = json_decode($raw,true);
+  return is_array($j) ? $j : [];
 }
 
-function get_player_id_by_token($mysqli, $token) {
-    $stmt = $mysqli->prepare("SELECT player_id FROM players WHERE token = ?");
-    $stmt->bind_param("s", $token);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    return $res->fetch_assoc()['player_id'] ?? null;
-}
 
-function get_card_rank($card) {
-    return substr($card, 0, -1);
-}
-
-// 5. ROUTING LOGIC - Διορθωμένο για XAMPP & Server
-$path_info = $_SERVER['PATH_INFO'] ?? '';
-$method = $_SERVER['REQUEST_METHOD'];
-
-// Διόρθωση για το Authorization Header σε Apache/XAMPP
-if (!isset($_SERVER['HTTP_AUTHORIZATION']) && isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
-    $_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
-}
-
+/* ===========================================================
+   AUTH CONTEXT
+   =========================================================== */
 $token = get_bearer_token();
-$current_player_id = $token ? get_player_id_by_token($mysqli, $token) : null;
+$current_player = $token ? get_player_id($mysqli,$token) : null;
 
-// --- ENDPOINT: AUTH (Δημιουργία Παίκτη) ---
-if ($path_info == '/auth' && $method == 'POST') {
-    $new_token = bin2hex(random_bytes(16));
-    $stmt = $mysqli->prepare("INSERT INTO players (token) VALUES (?)");
-    $stmt->bind_param("s", $new_token);
-    $stmt->execute();
-    echo json_encode(["status" => "success", "token" => $new_token, "player_id" => $mysqli->insert_id]);
-    exit();
+/* ===========================================================
+   ENDPOINTS
+   =========================================================== */
+
+/* ---------- AUTH ---------- */
+if ($path_info==='/auth' && $method==='POST'){
+  $t = bin2hex(random_bytes(16));
+  $st=$mysqli->prepare("INSERT INTO players(token) VALUES(?)");
+  $st->bind_param("s",$t);
+  $st->execute();
+  echo json_encode(["status"=>"success","token"=>$t,"player_id"=>$mysqli->insert_id]);
+  exit();
 }
 
-// --- ENDPOINT: CREATE GAME ---
-if ($path_info == '/games' && $method == 'POST') {
-    if (!$current_player_id) {
-        http_response_code(401);
-        die(json_encode(["status" => "error", "message" => "Unauthorized"]));
-    }
+/* ---------- CREATE GAME ---------- */
+if ($path_info==='/games' && $method==='POST'){
+  if(!$current_player){ echo json_encode(["status"=>"error","message"=>"Unauthorized"]); exit(); }
 
-    $initial_state = initialize_game();
-    $board_json = json_encode($initial_state);
-    
-    $stmt = $mysqli->prepare("INSERT INTO games (player1_id, status, current_turn, board_state) VALUES (?, 'waiting', ?, ?)");
-    $stmt->bind_param("iis", $current_player_id, $current_player_id, $board_json);
-    $stmt->execute();
-    
-    echo json_encode(["status" => "waiting", "game_id" => $mysqli->insert_id, "board_state" => $initial_state]);
-    exit();
+  $state = initialize_game();
+  $state['player1_id']=$current_player;
+  $state['player2_id']=null;
+
+  $st=$mysqli->prepare(
+    "INSERT INTO games(player1_id,status,current_turn,board_state)
+     VALUES(?, 'waiting', ?, ?)"
+  );
+  $json=json_encode($state,JSON_UNESCAPED_UNICODE);
+  $st->bind_param("iis",$current_player,$current_player,$json);
+  $st->execute();
+
+  echo json_encode(["status"=>"waiting","game_id"=>$mysqli->insert_id,"board_state"=>$state]);
+  exit();
 }
 
-// --- ENDPOINT: JOIN GAME ---
-if (preg_match('/^\/games\/(\d+)\/join$/', $path_info, $matches) && $method == 'POST') {
-    $game_id = $matches[1];
-    if (!$current_player_id) die(json_encode(["status" => "error", "message" => "Unauthorized"]));
+/* ---------- JOIN GAME ---------- */
+if (preg_match('#^/games/(\d+)/join$#',$path_info,$m) && $method==='POST'){
+  if(!$current_player){ echo json_encode(["status"=>"error","message"=>"Unauthorized"]); exit(); }
+  $gid=(int)$m[1];
 
-    $stmt = $mysqli->prepare("UPDATE games SET player2_id = ?, status = 'active' WHERE game_id = ? AND player1_id != ? AND status = 'waiting'");
-    $stmt->bind_param("iii", $current_player_id, $game_id, $current_player_id);
-    $stmt->execute();
+  $g=$mysqli->query("SELECT * FROM games WHERE game_id=$gid")->fetch_assoc();
+  if(!$g || $g['status']!=='waiting'){ echo json_encode(["status"=>"error"]); exit(); }
 
-    if ($mysqli->affected_rows > 0) {
-        echo json_encode(["status" => "active", "message" => "Joined successfully"]);
-    } else {
-        echo json_encode(["status" => "error", "message" => "Cannot join game (Check if ID is correct or if you are already P1)"]);
-    }
-    exit();
+  $board=json_decode($g['board_state'],true);
+  $board['player2_id']=$current_player;
+
+  $st=$mysqli->prepare(
+    "UPDATE games SET player2_id=?,status='active',board_state=? WHERE game_id=?"
+  );
+  $json=json_encode($board,JSON_UNESCAPED_UNICODE);
+  $st->bind_param("isi",$current_player,$json,$gid);
+  $st->execute();
+
+  echo json_encode(["status"=>"active"]);
+  exit();
 }
 
-// --- ENDPOINT: VIEW GAME ---
-if (preg_match('/^\/games\/(\d+)$/', $path_info, $matches) && $method == 'GET') {
-    $game_id = $matches[1];
-    $stmt = $mysqli->prepare("SELECT * FROM games WHERE game_id = ?");
-    $stmt->bind_param("i", $game_id);
-    $stmt->execute();
-    $game = $stmt->get_result()->fetch_assoc();
+/* ---------- VIEW GAME ---------- */
+if (preg_match('#^/games/(\d+)$#',$path_info,$m) && $method==='GET'){
+  $gid=(int)$m[1];
+  $g=$mysqli->query("SELECT * FROM games WHERE game_id=$gid")->fetch_assoc();
+  if(!$g){ echo json_encode(["status"=>"error"]); exit(); }
 
-    if (!$game) die(json_encode(["status" => "error", "message" => "Game not found"]));
-    
-    echo json_encode([
-        "status" => $game['status'],
-        "current_turn" => $game['current_turn'],
-        "board_state" => json_decode($game['board_state'], true),
-        "player1_id" => $game['player1_id'],
-        "player2_id" => $game['player2_id']
-    ]);
-    exit();
+  $board=json_decode($g['board_state'],true);
+
+  echo json_encode([
+    "status"=>$g['status'],
+    "current_turn"=>(int)$g['current_turn'],
+    "board_state"=>$board,
+    "player1_id"=>(int)$g['player1_id'],
+    "player2_id"=>$g['player2_id']? (int)$g['player2_id']:null,
+    "live_scores"=>calculate_live_score($board)
+  ],JSON_UNESCAPED_UNICODE);
+  exit();
 }
 
-// --- ENDPOINT: MOVE ---
-if (preg_match('/^\/games\/(\d+)\/move$/', $path_info, $matches) && $method == 'POST') {
-    $game_id = $matches[1];
-    $input = json_decode(file_get_contents('php://input'), true);
-    
-    if (!$current_player_id) die(json_encode(["status" => "error", "message" => "Unauthorized"]));
+/* ---------- MOVE ---------- */
+if (preg_match('#^/games/(\d+)/move$#',$path_info,$m) && $method==='POST'){
+  if(!$current_player){ echo json_encode(["status"=>"error","message"=>"Unauthorized"]); exit(); }
 
-    $stmt = $mysqli->prepare("SELECT * FROM games WHERE game_id = ?");
-    $stmt->bind_param("i", $game_id);
-    $stmt->execute();
-    $game = $stmt->get_result()->fetch_assoc();
+  $gid=(int)$m[1];
+  $in=json_body();
 
-    if (!$game || $game['current_turn'] != $current_player_id) {
-        die(json_encode(["status" => "error", "message" => "Not your turn or game not found"]));
-    }
+  $g=$mysqli->query("SELECT * FROM games WHERE game_id=$gid")->fetch_assoc();
+  if(!$g || (int)$g['current_turn']!==$current_player){
+    echo json_encode(["status"=>"error","message"=>"Not your turn"]); exit();
+  }
 
-    $game_data = [
-        'player1_id' => $game['player1_id'],
-        'player2_id' => $game['player2_id'],
-        'board_state' => json_decode($game['board_state'], true)
-    ];
+  $board=json_decode($g['board_state'],true);
+  $board['player1_id']=(int)$g['player1_id'];
+  $board['player2_id']=$g['player2_id']? (int)$g['player2_id']:null;
 
-    $move_res = apply_move_and_check_rules($game_data, $current_player_id, $input['player_card'], $input['table_cards']);
-    
-    if (isset($move_res['error']) && $move_res['error']) {
-        die(json_encode(["status" => "error", "message" => $move_res['error']]));
-    }
+  $game_data=[
+    "player1_id"=>$board['player1_id'],
+    "player2_id"=>$board['player2_id'],
+    "board_state"=>$board
+  ];
 
-    $opponent_id = ($current_player_id == $game['player1_id']) ? $game['player2_id'] : $game['player1_id'];
-    $round_check = check_end_of_round_or_game($move_res['board_state'], $current_player_id, $opponent_id);
-    
-    $new_status = $round_check['status'];
-    $final_state = $round_check['board_state'];
-    $next_turn = $opponent_id;
-    $final_scores = ($new_status == 'ended') ? calculate_final_score($final_state) : null;
+  $res=apply_move_and_check_rules(
+    $game_data,
+    $current_player,
+    $in['player_card'],
+    $in['table_cards'] ?? []
+  );
+  if(!empty($res['error'])){ echo json_encode(["status"=>"error","message"=>$res['error']]); exit(); }
 
-    $stmt = $mysqli->prepare("UPDATE games SET board_state = ?, current_turn = ?, status = ? WHERE game_id = ?");
-    $state_json = json_encode($final_state);
-    $stmt->bind_param("sisi", $state_json, $next_turn, $new_status, $game_id);
-    $stmt->execute();
+  $opp = ($current_player===$board['player1_id']) ? $board['player2_id'] : $board['player1_id'];
 
-    echo json_encode([
-        "status" => $new_status,
-        "current_turn" => $next_turn,
-        "board_state" => $final_state,
-        "final_scores" => $final_scores
-    ]);
-    exit();
+  $round=check_end_of_round_or_game($game_data,$res['board_state'],$current_player,$opp);
+
+  $final_scores = ($round['status']==='ended')
+    ? calculate_final_score($game_data,$round['board_state'])
+    : null;
+
+  $json=json_encode($round['board_state'],JSON_UNESCAPED_UNICODE);
+  $st=$mysqli->prepare("UPDATE games SET board_state=?,current_turn=?,status=? WHERE game_id=?");
+  $st->bind_param("sisi",$json,$opp,$round['status'],$gid);
+  $st->execute();
+
+  echo json_encode([
+    "status"=>$round['status'],
+    "current_turn"=>$opp,
+    "board_state"=>$round['board_state'],
+    "live_scores"=>calculate_live_score($round['board_state']),
+    "final_scores"=>$final_scores
+  ],JSON_UNESCAPED_UNICODE);
+  exit();
 }
 
-// 6. DEFAULT RESPONSE
-echo json_encode([
-    "status" => "online",
-    "database" => "connected",
-    "environment" => ($is_server ? "IEE Server" : "Local Presentation"),
-    "info" => "ADISE25 Xeri API Operational"
-]);
+/* ---------- DEFAULT ---------- */
+echo json_encode(["status"=>"online","info"=>"Xeri API OK"]);
 
-$mysqli->close();
-?>

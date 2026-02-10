@@ -1,271 +1,234 @@
 <?php
+declare(strict_types=1);
 
-//ΣΥΝΑΡΤΗΣΗ ΓΙΑ ΤΟ ΑΝΑΚΑΤΕΜΑ ΚΑΙ ΤΟΥ ΜΟΙΡΑΣΜΟΥ ΤΗΣ ΤΡΑΠΟΥΛΑΣ
-function initialize_game(){
-    $suits = ['H', 'D', 'C', 'S']; // Κούπες, Καρό, Μπαστούνια, Σπαθιά
-    $ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']; 
-
-    $deck =[];
-    foreach ($suits as $suit){
-        foreach($ranks as $rank){
-            $deck[] = $rank . $suit;
-        }
-    }
-
-    shuffle($deck);
-
-    // Αρχικό μοίρασμα (6 φύλλα στον κάθε παίκτη και 4 στο τραπέζι)
-    $player1_hand = array_splice($deck, 0, 6);
-    $player2_hand = array_splice($deck, 0, 6);
-    $table_pile = array_splice($deck, 0, 4);
-
-    // Αρχική κατάσταση του παιχνιδιού
-    $initial_state = [
-        'deck' => $deck,
-        'player1_hand' => $player1_hand,
-        'player2_hand' => $player2_hand,
-        'table_pile' => $table_pile,
-    
-        // Στοίβες μαζεμένων χαρτιών (για υπολογισμό πόντων)
-        'player1_collected' => [],
-        'player2_collected' => [],
-        
-        'p1_xeri_count' => 0, // Μετρητής Ξερή (10 πόντοι)
-        'p1_xeri_jack_count' => 0, // Μετρητής Ξερή με Βαλέ (20 πόντοι)
-        'p2_xeri_count' => 0,
-        'p2_xeri_jack_count' => 0,
-        
-        'last_collector_id' => null, // Ο ID του παίκτη που μάζεψε τελευταίος (σημαντικό στο τέλος)
-        'game_rounds_left' => 6 // Εάν μοιράζονται 6 φύλλα, τότε 6 γύροι* (αν επαναλαμβάνεται το μοίρασμα)
-    ];
-    
-    return $initial_state;
-
+function get_card_rank(string $card): string {
+    // π.χ. "10D" -> "10", "7S" -> "7", "JC" -> "J"
+    return substr($card, 0, -1);
 }
 
-function apply_move_and_check_rules($game_data, $player_id, $player_card, $table_cards_to_collect) {
+function initialize_game(): array {
+    $suits = ['H', 'D', 'C', 'S'];
+    $ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+    $deck = [];
+    foreach ($suits as $suit) {
+        foreach ($ranks as $rank) {
+            $deck[] = $rank.$suit;
+        }
+    }
+    shuffle($deck);
+
+    $player1_hand = array_splice($deck, 0, 6);
+    $player2_hand = array_splice($deck, 0, 6);
+    $table_pile   = array_splice($deck, 0, 4);
+
+    return [
+        'deck' => $deck,
+
+        'player1_hand' => $player1_hand,
+        'player2_hand' => $player2_hand,
+        'table_pile'   => $table_pile,
+
+        'player1_collected' => [],
+        'player2_collected' => [],
+
+        'p1_xeri_count' => 0,
+        'p1_xeri_jack_count' => 0,
+        'p2_xeri_count' => 0,
+        'p2_xeri_jack_count' => 0,
+
+        'last_collector_id' => null,
+        'game_rounds_left' => 6,
+    ];
+}
+
+/**
+ * Κλασική Ξερή:
+ * - Παίζεις ένα φύλλο.
+ * - Αν ταιριάζει με το ΠΑΝΩ φύλλο στο τραπέζι (ίδιο rank) ή είναι Βαλές (J) -> μαζεύεις ΟΛΗ τη στοίβα.
+ * - Αλλιώς -> το ρίχνεις πάνω στη στοίβα.
+ * Σημείωση: table_cards_to_collect αγνοείται (το UI δεν χρειάζεται να κλικάρει τραπέζι).
+ */
+function apply_move_and_check_rules(array $game_data, int $player_id, string $player_card, array $table_cards_to_collect): array {
     $board_state = $game_data['board_state'];
-    
-    // 1. Αναγνώριση χεριού και στοίβας συλλογής του παίκτη
+
     $is_p1 = ($player_id == $game_data['player1_id']);
     $player_hand_key = $is_p1 ? 'player1_hand' : 'player2_hand';
-    $collected_key = $is_p1 ? 'player1_collected' : 'player2_collected';
-    $xeri_count_key = $is_p1 ? 'p1_xeri_count' : 'p2_xeri_count';
-    $xeri_jack_count_key = $is_p1 ? 'p1_xeri_jack_count' : 'p2_xeri_jack_count';
+    $collected_key   = $is_p1 ? 'player1_collected' : 'player2_collected';
+    $xeri_count_key  = $is_p1 ? 'p1_xeri_count' : 'p2_xeri_count';
+    $xeri_jack_key   = $is_p1 ? 'p1_xeri_jack_count' : 'p2_xeri_jack_count';
 
-    // 2. Έλεγχος: Υπάρχει το φύλλο στο χέρι του παίκτη;
-    $card_index = array_search($player_card, $board_state[$player_hand_key]);
+    // υπάρχει στο χέρι;
+    $card_index = array_search($player_card, $board_state[$player_hand_key], true);
     if ($card_index === false) {
         return ['error' => "The card '$player_card' is not in your hand."];
     }
-    
-    $table_pile_count_before_move = count($board_state['table_pile']);
-    $card_rank = get_card_rank($player_card);
-    $table_cards_valid = true;
-    
-    // 3. Αφαίρεση του φύλλου από το χέρι του παίκτη
+
+    // βγάζουμε από χέρι
     unset($board_state[$player_hand_key][$card_index]);
-    $board_state[$player_hand_key] = array_values($board_state[$player_hand_key]); // Αναδιοργάνωση του array
+    $board_state[$player_hand_key] = array_values($board_state[$player_hand_key]);
 
-    $collected_cards = [$player_card]; // Το φύλλο που παίχτηκε
+    $table_count_before = count($board_state['table_pile']);
 
-    // --- ΚΑΝΟΝΕΣ ΚΙΝΗΣΗΣ ---
+    // αν τραπέζι άδειο -> απλά ρίχνει
+    if ($table_count_before === 0) {
+        $board_state['table_pile'][] = $player_card;
+        $board_state['last_collector_id'] = null;
+        return ['board_state' => $board_state, 'error' => null];
+    }
 
-    if (empty($table_cards_to_collect)) {
-        // Περίπτωση Α: Ο παίκτης ΑΠΛΑ ΡΙΧΝΕΙ
-        
-        if ($table_pile_count_before_move > 0) {
-             // Εάν υπάρχει ήδη στοίβα, απλά προσθέτει το φύλλο στην κορυφή.
-            $board_state['table_pile'][] = $player_card;
-        } else {
-             // Το τραπέζι ήταν άδειο. Τοποθετείται το φύλλο.
-             $board_state['table_pile'][] = $player_card;
-        }
-        
-        $board_state['last_collector_id'] = null; // Δεν έγινε μάζεμα
-        
-    } else {
-        // Περίπτωση Β: Ο παίκτης ΜΑΖΕΥΕΙ
-        
-        // 4. Έλεγχος: Είναι όλα τα φύλλα που θέλει να μαζέψει όντως στο τραπέζι;
-        foreach ($table_cards_to_collect as $card) {
-            if (!in_array($card, $board_state['table_pile'])) {
-                return ['error' => "The card '$card' is not available on the table."];
-            }
-        }
+    // πάνω φύλλο
+    $top_table_card = $board_state['table_pile'][$table_count_before - 1];
+    $top_rank = get_card_rank($top_table_card);
+    $rank = get_card_rank($player_card);
 
-        $top_table_card = $board_state['table_pile'][count($board_state['table_pile']) - 1]; // Το πάνω φύλλο
-        $top_card_rank = get_card_rank($top_table_card);
-        
-        $is_jack = ($card_rank === 'J');
-        $is_matching = ($card_rank === $top_card_rank);
+    $is_jack = ($rank === 'J');
+    $is_matching = ($rank === $top_rank);
 
-        // 5. Έλεγχος Κανόνων Μάζεματος
-        
-        if (!$is_matching && !$is_jack) {
-            return ['error' => "Invalid move: Player card must match the top card or be a Jack (Βαλέ)."];
-        }
-
-        // 6. Εκτέλεση Μάζεματος
-        
-        // Προσθέτουμε τα μαζεμένα φύλλα στη στοίβα συλλογής
-        $collected_cards = array_merge($collected_cards, $table_cards_to_collect);
+    if ($is_jack || $is_matching) {
+        // μαζεύει όλη τη στοίβα + το φύλλο του
+        $collected_cards = array_merge([$player_card], $board_state['table_pile']);
         $board_state[$collected_key] = array_merge($board_state[$collected_key], $collected_cards);
 
-        // Αφαιρούμε τα μαζεμένα φύλλα από τη στοίβα του τραπεζιού
-        $board_state['table_pile'] = array_diff($board_state['table_pile'], $table_cards_to_collect);
-        $board_state['table_pile'] = array_values($board_state['table_pile']); // Αναδιοργάνωση
-
-        // Ενημέρωση τελευταίου παίκτη που μάζεψε
+        // άδειασμα τραπεζιού
+        $board_state['table_pile'] = [];
         $board_state['last_collector_id'] = $player_id;
-        
-        // 7. Έλεγχος για Ξερή
-        if ($table_pile_count_before_move === 1 && count($table_cards_to_collect) === 1) {
-            // Συνθήκη Ξερής: Υπήρχε μόνο 1 φύλλο και ο παίκτης το μάζεψε
-            if ($is_jack) {
-                // Ξερή με Βαλέ (20 πόντοι)
-                $board_state[$xeri_jack_count_key]++;
-            } else {
-                // Κανονική Ξερή (10 πόντοι)
-                $board_state[$xeri_count_key]++;
-            }
+
+        // Ξερή: αν πριν υπήρχε ΜΟΝΟ 1 φύλλο
+        if ($table_count_before === 1) {
+            if ($is_jack) $board_state[$xeri_jack_key] += 1;
+            else $board_state[$xeri_count_key] += 1;
         }
-        
-        // Ειδικός κανόνας: Αν το τραπέζι είναι τώρα άδειο, ο παίκτης κερδίζει.
-        // Αν το τραπέζι άδειασε, δεν έγινε Ξερή (αν είχε >1 φύλλα), αλλά ο παίκτης θα πάρει τα τυχόν φύλλα που έμειναν στο τέλος.
+
+        return ['board_state' => $board_state, 'error' => null];
     }
-    
-    // 8. Έλεγχος Τέλους Γύρου/Παιχνιδιού (θα γίνει στο update_game_state_and_turn)
-    
+
+    // αλλιώς απλά ρίχνει
+    $board_state['table_pile'][] = $player_card;
+    $board_state['last_collector_id'] = null;
+
     return ['board_state' => $board_state, 'error' => null];
 }
 
 /**
- * Ελέγχει αν πρέπει να γίνει ανανέωση χεριών (τέλος γύρου) ή αν το παιχνίδι τελείωσε (τέλος παρτίδας).
+ * Τέλος γύρου: όταν αδειάσουν και τα δύο χέρια.
+ * - Αν δεν υπάρχει deck -> τέλος παιχνιδιού + ο last_collector παίρνει τα φύλλα τραπεζιού.
+ * - Αλλιώς μοιράζει 6-6.
  */
-function check_end_of_round_or_game($board_state, $player_id, $opponent_id) {
-    
-    $p_hand_key = ($player_id == $board_state['player1_id']) ? 'player1_hand' : 'player2_hand';
-    $opp_hand_key = ($opponent_id == $board_state['player1_id']) ? 'player1_hand' : 'player2_hand';
+function check_end_of_round_or_game(array $game_data, array $board_state, int $player_id, int $opponent_id): array {
 
-    // Έλεγχος: Τέλος Γύρου (και τα δύο χέρια είναι άδεια)
+    // ΠΟΙΟΣ ΕΙΝΑΙ P1 / P2 απο το game_data (DB fields)
+    $p1_id = (int)$game_data['player1_id'];
+    $p2_id = (int)$game_data['player2_id'];
+
+    $p_hand_key   = ($player_id === $p1_id) ? 'player1_hand' : 'player2_hand';
+    $opp_hand_key = ($opponent_id === $p1_id) ? 'player1_hand' : 'player2_hand';
+
+    // Τέλος γύρου: και τα 2 χέρια άδεια
     if (empty($board_state[$p_hand_key]) && empty($board_state[$opp_hand_key])) {
-        
-        // 1. ΤΕΛΟΣ ΠΑΡΤΙΔΑΣ; (Δεν υπάρχουν άλλα φύλλα στην τράπουλα)
+
+        // Τέλος παρτίδας: δεν υπάρχουν άλλα φύλλα στην τράπουλα
         if (empty($board_state['deck'])) {
-            
-            // Το παιχνίδι τελείωσε. Ο τελευταίος που μάζεψε παίρνει τα φύλλα του τραπεζιού.
-            if ($board_state['last_collector_id'] !== null && !empty($board_state['table_pile'])) {
-                
-                $collector_key = ($board_state['last_collector_id'] == $board_state['player1_id']) ? 'player1_collected' : 'player2_collected';
-                
-                // Μεταφορά φύλλων τραπεζιού στη στοίβα του τελευταίου νικητή
+
+            // ο τελευταίος που μάζεψε παίρνει ό,τι έχει μείνει στο τραπέζι
+            if (!empty($board_state['table_pile']) && !empty($board_state['last_collector_id'])) {
+                $collector_key = ((int)$board_state['last_collector_id'] === $p1_id) ? 'player1_collected' : 'player2_collected';
                 $board_state[$collector_key] = array_merge($board_state[$collector_key], $board_state['table_pile']);
-                $board_state['table_pile'] = []; // Άδειασμα τραπεζιού
+                $board_state['table_pile'] = [];
             }
-            
-            return [
-                'status' => 'ended', 
-                'board_state' => $board_state
-            ];
-            
-        } else {
-            // 2. ΤΕΛΟΣ ΓΥΡΟΥ (Υπάρχουν ακόμα φύλλα για μοίρασμα)
-            
-            $num_to_deal = 6; // Μοιράζουμε ξανά 6 φύλλα
-            
-            if (count($board_state['deck']) >= $num_to_deal * 2) {
-                // Μοίρασμα νέων φύλλων
-                $new_p1_cards = array_splice($board_state['deck'], 0, $num_to_deal);
-                $new_p2_cards = array_splice($board_state['deck'], 0, $num_to_deal);
-                
-                $board_state['player1_hand'] = $new_p1_cards;
-                $board_state['player2_hand'] = $new_p2_cards;
-                
-                // Μείωση μετρητή γύρων (προαιρετικό αν θέλουμε να μετρήσουμε γύρους)
-                $board_state['game_rounds_left']--;
-            }
-            
-            return [
-                'status' => 'active', 
-                'board_state' => $board_state
-            ];
+
+            return ['status' => 'ended', 'board_state' => $board_state];
         }
+
+        // Νέο μοίρασμα (έχει ακόμα deck)
+        $num = 6;
+        if (count($board_state['deck']) >= $num * 2) {
+            $board_state['player1_hand'] = array_splice($board_state['deck'], 0, $num);
+            $board_state['player2_hand'] = array_splice($board_state['deck'], 0, $num);
+            $board_state['game_rounds_left'] = max(0, (int)($board_state['game_rounds_left'] ?? 0) - 1);
+        }
+
+        return ['status' => 'active', 'board_state' => $board_state];
     }
-    
-    // Το παιχνίδι συνεχίζεται κανονικά
+
+    return ['status' => 'active', 'board_state' => $board_state];
+}
+
+function calculate_live_score(array $board_state): array {
+    $p1 = 0;
+    $p2 = 0;
+
+    // Ξερές
+    $p1 += ((int)$board_state['p1_xeri_count'] * 10);
+    $p1 += ((int)$board_state['p1_xeri_jack_count'] * 20);
+
+    $p2 += ((int)$board_state['p2_xeri_count'] * 10);
+    $p2 += ((int)$board_state['p2_xeri_jack_count'] * 20);
+
+    // Ειδικά χαρτιά & φιγούρες
+    foreach ($board_state['player1_collected'] as $card) {
+        $rank = get_card_rank($card);
+        if ($card === '2S') $p1 += 1;
+        if ($card === '10D') $p1 += 1;
+        if (in_array($rank, ['K','Q','J','10'], true) && $card !== '10D') $p1 += 1;
+    }
+
+    foreach ($board_state['player2_collected'] as $card) {
+        $rank = get_card_rank($card);
+        if ($card === '2S') $p2 += 1;
+        if ($card === '10D') $p2 += 1;
+        if (in_array($rank, ['K','Q','J','10'], true) && $card !== '10D') $p2 += 1;
+    }
+
     return [
-        'status' => 'active', 
-        'board_state' => $board_state
+        'player1_score' => $p1,
+        'player2_score' => $p2
     ];
 }
 
-/**
- * Υπολογίζει την τελική βαθμολογία με βάση τους κανόνες της Ξερής.
- */
-function calculate_final_score($board_state) {
+
+
+function calculate_final_score(array $game_data, array $board_state): array {
+    $p1_id = $game_data['player1_id'];
+    $p2_id = $game_data['player2_id'];
+
     $p1_score = 0;
     $p2_score = 0;
-    
+
     $p1_collected = $board_state['player1_collected'];
     $p2_collected = $board_state['player2_collected'];
-    
-    $p1_cards_count = count($p1_collected);
-    $p2_cards_count = count($p2_collected);
 
-    // --- 1. Βαθμολογία Ξερής (10 & 20 πόντοι) ---
-    $p1_score += ($board_state['p1_xeri_count'] * 10);
-    $p1_score += ($board_state['p1_xeri_jack_count'] * 20);
-    $p2_score += ($board_state['p2_xeri_count'] * 10);
-    $p2_score += ($board_state['p2_xeri_jack_count'] * 20);
+    // Ξερές
+    $p1_score += ((int)$board_state['p1_xeri_count'] * 10) + ((int)$board_state['p1_xeri_jack_count'] * 20);
+    $p2_score += ((int)$board_state['p2_xeri_count'] * 10) + ((int)$board_state['p2_xeri_jack_count'] * 20);
 
-    // --- 2. Ειδικά Χαρτιά & Φιγούρες (1 πόντος έκαστο) ---
-    $p1_tens_figures = 0;
-    $p2_tens_figures = 0;
-    
+    // ειδικά / φιγούρες
     foreach ($p1_collected as $card) {
         $rank = get_card_rank($card);
-        $suit = substr($card, -1);
-        
-        // 2α. 2 Σπαθί (S2)
         if ($card === '2S') $p1_score += 1;
-        // 2β. 10 Καρό (D10)
         if ($card === '10D') $p1_score += 1;
-        
-        // 2γ. Φιγούρες (K, Q, J, 10, εκτός του 10 Καρό)
-        if (in_array($rank, ['K', 'Q', 'J', '10']) && $card !== '10D') {
-            $p1_score += 1;
-        }
+        if (in_array($rank, ['K','Q','J','10'], true) && $card !== '10D') $p1_score += 1;
     }
-
     foreach ($p2_collected as $card) {
         $rank = get_card_rank($card);
-        $suit = substr($card, -1);
-        
         if ($card === '2S') $p2_score += 1;
         if ($card === '10D') $p2_score += 1;
-        
-        if (in_array($rank, ['K', 'Q', 'J', '10']) && $card !== '10D') {
-            $p2_score += 1;
-        }
+        if (in_array($rank, ['K','Q','J','10'], true) && $card !== '10D') $p2_score += 1;
     }
 
-    // --- 3. Περισσότερα Χαρτιά (3 πόντοι) ---
-    $winner_cards = 0;
-    if ($p1_cards_count > $p2_cards_count) {
-        $p1_score += 3;
-        $winner_cards = $board_state['player1_id'];
-    } elseif ($p2_cards_count > $p1_cards_count) {
-        $p2_score += 3;
-        $winner_cards = $board_state['player2_id'];
-    }
-    // Εάν είναι ίσα, κανένας δεν παίρνει τους 3 πόντους.
+    // περισσότερα χαρτιά +3
+    $p1_cnt = count($p1_collected);
+    $p2_cnt = count($p2_collected);
+    if ($p1_cnt > $p2_cnt) $p1_score += 3;
+    elseif ($p2_cnt > $p1_cnt) $p2_score += 3;
 
-    $final_scores = [
+    $winner_id = null;
+    if ($p1_score > $p2_score) $winner_id = $p1_id;
+    elseif ($p2_score > $p1_score) $winner_id = $p2_id;
+
+    return [
         'player1_score' => $p1_score,
         'player2_score' => $p2_score,
-        'winner_id' => ($p1_score > $p2_score) ? $board_state['player1_id'] : (($p2_score > $p1_score) ? $board_state['player2_id'] : null)
+        'winner_id' => $winner_id
     ];
-
-    return $final_scores;
 }
